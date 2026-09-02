@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -11,7 +12,7 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cors({
     origin: [
-        'https://career-connect-01.netlify.app/',
+        'https://career-connect-01.netlify.app',
         'http://localhost:3000',
         'http://localhost:5001'
     ],
@@ -23,17 +24,13 @@ app.use(cors({
 
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 
 // Create uploads directory if it doesn't exist
-if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
-    fs.mkdirSync('uploads/resumes');
-    fs.mkdirSync('uploads/profile_photos');
-}
+fs.mkdirSync('uploads/resumes', { recursive: true });
+fs.mkdirSync('uploads/profile_photos', { recursive: true });
 
 // Configure multer for resume uploads
 const resumeStorage = multer.diskStorage({
@@ -89,8 +86,15 @@ const profilePhotoUpload = multer({
 const db = mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root1234',
+    password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'internship_placement'
+});
+
+app.get('/api/health', (req, res) => {
+    db.ping((err) => {
+        if (err) return res.status(503).json({ status: 'error', database: 'unavailable' });
+        res.json({ status: 'ok', database: 'connected' });
+    });
 });
 
 db.connect((err) => {
@@ -102,8 +106,14 @@ db.connect((err) => {
 });
 
 // Register User
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
     const { name, email, password, userType, major, academicYear, industry, website } = req.body;
+
+    if (!name || !email || !password || password.length < 8) {
+        return res.status(400).json({ error: 'Name, email and a password of at least 8 characters are required' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const checkStudents = 'SELECT email FROM students WHERE email = ?';
     const checkCompanies = 'SELECT email FROM companies WHERE email = ?';
@@ -136,11 +146,11 @@ app.post('/api/register', (req, res) => {
                 if (userType === 'student') {
                     table = 'students';
                     insertQuery = 'INSERT INTO students (name, email, password, major, academic_year) VALUES (?, ?, ?, ?, ?)';
-                    insertParams = [name, email, password, major, academicYear];
+                    insertParams = [name, email, passwordHash, major, academicYear];
                 } else if (userType === 'company') {
                     table = 'companies';
                     insertQuery = 'INSERT INTO companies (name, email, password, industry, website) VALUES (?, ?, ?, ?, ?)';
-                    insertParams = [name, email, password, industry, website];
+                    insertParams = [name, email, passwordHash, industry, website];
                 } else {
                     return res.status(400).json({ error: 'Invalid user type' });
                 }
@@ -189,7 +199,7 @@ app.post('/api/login', (req, res) => {
 
     query = `SELECT * FROM ${table} WHERE email = ?`;
     
-    db.query(query, [email], (err, results) => {
+    db.query(query, [email], async (err, results) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
@@ -201,8 +211,19 @@ app.post('/api/login', (req, res) => {
 
         const user = results[0];
         
-        if (password !== user.password) {
+        const isHash = user.password.startsWith('$2');
+        const passwordMatches = isHash
+            ? await bcrypt.compare(password, user.password)
+            : password === user.password;
+
+        if (!passwordMatches) {
             return res.status(400).json({ error: 'Invalid credentials' });
+        }
+
+        // Upgrade legacy demo accounts from plaintext on their first valid login.
+        if (!isHash) {
+            const upgradedHash = await bcrypt.hash(password, 12);
+            db.query(`UPDATE ${table} SET password = ? WHERE id = ?`, [upgradedHash, user.id]);
         }
 
         const userData = {
