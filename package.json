@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "setup": "npm install && mkdir -p uploads/resumes uploads/profile_photos",
-    "test": "echo \" Project setup complete\" && exit 0"
+    "test": "node --check server.js && node --check script.js"
   },
   "keywords": [
     "internship",

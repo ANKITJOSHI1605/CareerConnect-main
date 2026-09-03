@@ -1,6 +1,5 @@
-// const API_BASE_URL = 'http://localhost:5001/api';
-
-const API_BASE_URL = 'https://careerconnect-backend.onrender.com/api';
+// The production server hosts the UI and API on the same origin.
+const API_BASE_URL = `${window.location.origin}/api`;
 
 // DOM Elements
 const navbar = document.querySelector('.navbar');

@@ -28,6 +28,40 @@ A comprehensive web-based platform for managing internships and placement opport
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- MySQL (v5.7 or higher)
+- Node.js 20 or newer
+- MySQL 8
 - Web browser
+
+### Local setup
+
+```bash
+git clone https://github.com/ANKITJOSHI1605/CareerConnect-main.git
+cd CareerConnect-main
+cp .env.example .env
+npm install
+mysql -u root -p < database.sql
+npm start
+```
+
+Open `http://localhost:5001`. The Express service hosts both the frontend and API, avoiding production URL mismatches.
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Web-service port |
+| `DB_HOST`, `DB_PORT` | MySQL server address |
+| `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL credentials |
+| `DB_SSL` | Set `true` when the provider requires TLS |
+| `CORS_ORIGINS` | Comma-separated additional frontend origins |
+| `UPLOAD_DIR` | Persistent upload directory |
+
+## Deploy on Render
+
+1. Create a hosted MySQL database and import `database.sql`.
+2. Create a Render Node web service from this repository.
+3. Use `npm install` as the build command and `npm start` as the start command.
+4. Add the database variables privately in Render and set the health check to `/api/health`.
+5. Attach a persistent disk and set `UPLOAD_DIR` to its mount path if résumés must survive redeployments.
+
+The application validates uploads, hashes new passwords with bcrypt, supports legacy-password migration, uses a pooled database connection, and provides a database-aware health endpoint.

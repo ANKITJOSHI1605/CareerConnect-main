@@ -9,13 +9,17 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const uploadRoot = path.resolve(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads'));
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://career-connect-01.netlify.app,http://localhost:3000,http://localhost:5001')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
 
 app.use(cors({
-    origin: [
-        'https://career-connect-01.netlify.app',
-        'http://localhost:3000',
-        'http://localhost:5001'
-    ],
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin is not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -26,19 +30,21 @@ app.use(cors({
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(uploadRoot));
 
 // Create uploads directory if it doesn't exist
-fs.mkdirSync('uploads/resumes', { recursive: true });
-fs.mkdirSync('uploads/profile_photos', { recursive: true });
+const resumeDirectory = path.join(uploadRoot, 'resumes');
+const profilePhotoDirectory = path.join(uploadRoot, 'profile_photos');
+fs.mkdirSync(resumeDirectory, { recursive: true });
+fs.mkdirSync(profilePhotoDirectory, { recursive: true });
 
 // Configure multer for resume uploads
 const resumeStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/resumes/');
+        cb(null, resumeDirectory);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
+        cb(null, `${Date.now()}-${path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_')}`);
     }
 });
 
@@ -59,7 +65,7 @@ const resumeUpload = multer({
 // Configure multer for profile photo uploads
 const profilePhotoStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/profile_photos/');
+        cb(null, profilePhotoDirectory);
     },
     filename: function (req, file, cb) {
         const userId = req.params.userId;
@@ -83,11 +89,16 @@ const profilePhotoUpload = multer({
 });
 
 // MySQL Connection
-const db = mysql.createConnection({
+const db = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 3306),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME || 'internship_placement'
+    database: process.env.DB_NAME || 'internship_placement',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
 app.get('/api/health', (req, res) => {
@@ -97,12 +108,10 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-db.connect((err) => {
-    if (err) {
-        console.error('Database connection failed: ' + err.stack);
-        return;
-    }
+db.getConnection((err, connection) => {
+    if (err) return console.error('Database connection failed:', err.message);
     console.log('✅ Connected to MySQL database');
+    connection.release();
 });
 
 // Register User
@@ -607,8 +616,8 @@ app.put('/api/applications/:applicationId', (req, res) => {
 
 // Download resume
 app.get('/api/resume/:filename', (req, res) => {
-    const filename = req.params.filename;
-    const filePath = path.join(__dirname, 'uploads', 'resumes', filename);
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(resumeDirectory, filename);
     
     res.download(filePath, (err) => {
         if (err) {
@@ -670,14 +679,16 @@ app.use((error, req, res, next) => {
     res.status(500).json({ error: error.message });
 });
 
-// Default route
+app.get('/styles.css', (req, res) => res.sendFile(path.join(__dirname, 'styles.css')));
+app.get('/script.js', (req, res) => res.sendFile(path.join(__dirname, 'script.js')));
+
+// Frontend route
 app.get('/', (req, res) => {
-    res.json({ message: 'CareerConnect API is running!' });
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Start server
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Email functionality removed`);
-    console.log(`Database: internship_placement`);
+    console.log(`Database: ${process.env.DB_NAME || 'internship_placement'}`);
 });
