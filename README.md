@@ -29,7 +29,7 @@ A comprehensive web-based platform for managing internships and placement opport
 
 ### Prerequisites
 - Node.js 20 or newer
-- MySQL 8
+- PostgreSQL 14 or newer
 - Web browser
 
 ### Local setup
@@ -39,7 +39,6 @@ git clone https://github.com/ANKITJOSHI1605/CareerConnect-main.git
 cd CareerConnect-main
 cp .env.example .env
 npm install
-mysql -u root -p < database.sql
 npm start
 ```
 
@@ -50,18 +49,18 @@ Open `http://localhost:5001`. The Express service hosts both the frontend and AP
 | Variable | Purpose |
 | --- | --- |
 | `PORT` | Web-service port |
-| `DB_HOST`, `DB_PORT` | MySQL server address |
-| `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL credentials |
-| `DB_SSL` | Set `true` when the provider requires TLS |
+| `DATABASE_URL` | PostgreSQL connection URL |
+| `DB_SSL` | Set `false` only for a local PostgreSQL server without TLS |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Optional administrator bootstrap credentials |
 | `CORS_ORIGINS` | Comma-separated additional frontend origins |
 | `UPLOAD_DIR` | Persistent upload directory |
 
 ## Deploy on Render
 
-1. Create a hosted MySQL database and import `database.sql`.
-2. Create a Render Node web service from this repository.
-3. Use `npm install` as the build command and `npm start` as the start command.
-4. Add the database variables privately in Render and set the health check to `/api/health`.
+1. Create a Render Node web service from this repository.
+2. Use `npm install` as the build command and `npm start` as the start command.
+3. Add `DATABASE_URL` privately in Render. The application creates isolated `career_*` tables automatically, so it can safely share a database instance with other projects.
+4. Optionally add `ADMIN_EMAIL` and `ADMIN_PASSWORD` (minimum 10 characters), then set the health check to `/api/health`.
 5. Attach a persistent disk and set `UPLOAD_DIR` to its mount path if résumés must survive redeployments.
 
 The application validates uploads, hashes new passwords with bcrypt, supports legacy-password migration, uses a pooled database connection, and provides a database-aware health endpoint.

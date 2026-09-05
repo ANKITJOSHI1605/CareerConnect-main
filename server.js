@@ -1,11 +1,11 @@
 const express = require('express');
-const mysql = require('mysql2');
 const cors = require('cors');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+const { db, initializeDatabase } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -88,30 +88,11 @@ const profilePhotoUpload = multer({
     }
 });
 
-// MySQL Connection
-const db = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME || 'internship_placement',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
-});
-
 app.get('/api/health', (req, res) => {
     db.ping((err) => {
         if (err) return res.status(503).json({ status: 'error', database: 'unavailable' });
         res.json({ status: 'ok', database: 'connected' });
     });
-});
-
-db.getConnection((err, connection) => {
-    if (err) return console.error('Database connection failed:', err.message);
-    console.log('✅ Connected to MySQL database');
-    connection.release();
 });
 
 // Register User
@@ -687,8 +668,18 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Database: ${process.env.DB_NAME || 'internship_placement'}`);
-});
+// Start only after PostgreSQL tables and the optional admin account are ready.
+async function start() {
+    try {
+        await initializeDatabase();
+        app.listen(PORT, () => {
+            console.log(`Server running on http://localhost:${PORT}`);
+            console.log('Database: PostgreSQL connected');
+        });
+    } catch (error) {
+        console.error('Database initialization failed:', error.message);
+        process.exit(1);
+    }
+}
+
+start();
