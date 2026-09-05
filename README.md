@@ -1,5 +1,9 @@
 # CareerConnect - Smart Internship & Placement System
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Open_CareerConnect-635BFF?style=for-the-badge)](https://careerconnect-main.onrender.com)
+
+**Live demo:** [https://careerconnect-main.onrender.com](https://careerconnect-main.onrender.com)
+
 A comprehensive web-based platform for managing internships and placement opportunities for students, companies, and administrators.
 
 ## 🚀 Features
