@@ -10,14 +10,24 @@ const { db, initializeDatabase } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 5001;
 const uploadRoot = path.resolve(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads'));
-const allowedOrigins = (process.env.CORS_ORIGINS || 'https://career-connect-01.netlify.app,http://localhost:3000,http://localhost:5001')
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean);
+const configuredOrigins = (process.env.CORS_ORIGINS || 'https://career-connect-01.netlify.app,http://localhost:3000,http://localhost:5001')
+    .split(',');
+const renderOrigins = [
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.RENDER_EXTERNAL_HOSTNAME
+        ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+        : null,
+    'https://careerconnect-main.onrender.com'
+];
+const allowedOrigins = new Set(
+    [...configuredOrigins, ...renderOrigins]
+        .filter(Boolean)
+        .map(origin => origin.trim().replace(/\/$/, ''))
+);
 
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        if (!origin || allowedOrigins.has(origin.replace(/\/$/, ''))) return callback(null, true);
         return callback(new Error('Origin is not allowed by CORS'));
     },
     credentials: true,
